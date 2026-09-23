@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+backend/.venv/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+dist/
+build/
+
+# Local databases (dev only; production uses PostgreSQL)
+*.db
+*.db-journal
+*.sqlite3
+
+# Secrets (keep the example)
+.env
+!.env.example
+
+# Runtime caches and downloaded models
+.cache/
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
