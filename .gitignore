@@ -30,3 +30,10 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+# demo intermediates (keep only the final demo-with-sound.mp4)
+e2e/demo_raw.webm
+e2e/demo_assistant.wav
+e2e/demo_mixed.m4a
+e2e/video_raw/
+e2e/frames/
