@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { attachTool, deleteAgent, detachTool, getAgent, listTools } from '../api/client'
+import { formatDateTime, languageLabel } from '../utils/format'
 import KnowledgeBase from '../components/KnowledgeBase'
 
 function Field({ label, value }) {
@@ -104,7 +105,7 @@ export default function AgentDetail() {
         <div className="card">
           <h3>Configuration</h3>
           <div className="detail-grid">
-            <Field label="Language" value={<span className="chip">{agent.language}</span>} />
+            <Field label="Language" value={<span className="chip">{languageLabel(agent.language)}</span>} />
             <Field label="Voice gender" value={agent.voice_gender} />
             <Field label="Voice ID" value={<code>{agent.voice_id}</code>} />
             <Field label="TTS provider" value={agent.tts_provider} />
@@ -122,8 +123,8 @@ export default function AgentDetail() {
             <pre className="prompt-box">{agent.system_prompt}</pre>
           </div>
           <div className="muted small">
-            Created {agent.created_at ? new Date(agent.created_at).toLocaleString() : '—'}
-            {agent.updated_at ? ` · Updated ${new Date(agent.updated_at).toLocaleString()}` : ''}
+            Created {formatDateTime(agent.created_at)}
+            {agent.updated_at ? ` · Updated ${formatDateTime(agent.updated_at)}` : ''}
           </div>
           <div className="mt">
             <button className="btn btn-danger-ghost btn-sm" onClick={onDelete} disabled={deleting}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteAgent, listAgents } from '../api/client'
+import { languageLabel } from '../utils/format'
 
 export default function Agents() {
   const [agents, setAgents] = useState(null)
@@ -74,7 +75,7 @@ export default function Agents() {
                       {agent.name}
                     </Link>
                     <div className="muted small">
-                      {agent.language} · {agent.voice_gender} voice · {agent.tts_provider}
+                      {languageLabel(agent.language)} · {agent.voice_gender} voice · {agent.tts_provider}
                     </div>
                   </div>
                 </div>

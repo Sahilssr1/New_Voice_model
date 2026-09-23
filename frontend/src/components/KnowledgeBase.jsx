@@ -5,6 +5,7 @@ import {
   searchKb,
   uploadKbDocument,
 } from '../api/client'
+import { formatDateTime } from '../utils/format'
 
 export default function KnowledgeBase({ agentId }) {
   const [docs, setDocs] = useState([])
@@ -106,7 +107,8 @@ export default function KnowledgeBase({ agentId }) {
               <div>
                 <div className="tool-name">{d.filename}</div>
                 <div className="muted small">
-                  {d.chunk_count} chunks · {(d.char_count / 1000).toFixed(1)}k chars
+                  {d.chunk_count} chunks · {(d.char_count / 1000).toFixed(1)}k chars · uploaded{' '}
+                  {formatDateTime(d.created_at)}
                 </div>
               </div>
               <button className="btn btn-ghost btn-sm" onClick={() => onDelete(d)}>
@@ -139,7 +141,10 @@ export default function KnowledgeBase({ agentId }) {
               <li key={i} className="tool-item" style={{ alignItems: 'flex-start' }}>
                 <div>
                   <div className="tool-name">
-                    {h.filename} <span className="chip chip-sm ml">{h.score}</span>
+                    {h.filename}{' '}
+                    <span className="chip chip-sm ml" title="Relevance score (0–1)">
+                      {Number(h.score).toFixed(3)}
+                    </span>
                   </div>
                   <div className="muted small quote">{h.text}</div>
                 </div>

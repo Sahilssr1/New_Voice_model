@@ -1,21 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCall } from '../api/client'
-
-function formatTime(iso) {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString()
-  } catch {
-    return iso
-  }
-}
+import { formatDateTime, formatDuration, formatLatency, languageLabel } from '../utils/format'
 
 function LatencyBadge({ latency_ms }) {
   if (latency_ms === null || latency_ms === undefined) return null
   const ms = Math.round(latency_ms)
   const tone = ms < 1500 ? 'green' : ms < 3000 ? 'amber' : 'red'
-  return <span className={`badge badge-${tone}`}>{ms} ms</span>
+  return <span className={`badge badge-${tone}`}>{formatLatency(ms)}</span>
 }
 
 export default function CallDetail() {
@@ -57,8 +49,15 @@ export default function CallDetail() {
         <div>
           <h2>Call detail</h2>
           <p className="muted">
-            {call.agent?.name || call.agent_name || 'Unknown agent'} ·{' '}
-            <span className={`pill pill-${call.status}`}>{call.status}</span>
+            {call.agent?.name || 'Unknown agent'} ·{' '}
+            <span className={`pill pill-${call.status}`}>{call.status}</span> ·{' '}
+            {formatDuration(call.duration_sec)} · {formatDateTime(call.started_at)}
+            {call.language && (
+              <>
+                {' '}· <span className="chip chip-sm">{languageLabel(call.language)}</span>
+              </>
+            )}
+            <span className="muted"> · {messages.length} message{messages.length === 1 ? '' : 's'}</span>
           </p>
         </div>
         <Link to="/calls" className="btn btn-ghost">← Calls</Link>
@@ -73,10 +72,10 @@ export default function CallDetail() {
                 <div key={m.id || i} className={`bubble bubble-${m.role}`}>
                   <div className="bubble-head">
                     <span className="bubble-role">{m.role === 'assistant' ? 'AI' : m.role}</span>
-                    {m.language && <span className="badge badge-gray">{m.language}</span>}
+                    {m.language && <span className="badge badge-gray">{languageLabel(m.language)}</span>}
                     {m.intent && <span className="badge badge-blue">{m.intent}</span>}
                     <LatencyBadge latency_ms={m.latency_ms} />
-                    <span className="muted small ml-auto">{formatTime(m.created_at)}</span>
+                    <span className="muted small ml-auto">{formatDateTime(m.created_at)}</span>
                   </div>
                   <div className="bubble-text">{m.text}</div>
                   {m.entities && Object.keys(m.entities).length > 0 && (
@@ -93,6 +92,18 @@ export default function CallDetail() {
             </div>
           ) : (
             <p className="muted empty">No messages recorded for this call.</p>
+          )}
+          {call.facts && Object.keys(call.facts).length > 0 && (
+            <div className="summary-box">
+              <h4>Remembered facts</h4>
+              <div className="chip-row">
+                {Object.entries(call.facts).map(([k, v]) => (
+                  <span key={k} className="chip">
+                    {k}: {String(v)}
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
           {call.summary && (
             <div className="summary-box">
@@ -111,7 +122,7 @@ export default function CallDetail() {
                   <div className="timeline-dot" />
                   <div className="timeline-body">
                     <div className="timeline-type"><code>{ev.event_type}</code></div>
-                    <div className="muted small">{formatTime(ev.created_at)}</div>
+                    <div className="muted small">{formatDateTime(ev.created_at)}</div>
                     {ev.payload && (
                       <pre className="timeline-payload">
                         {typeof ev.payload === 'string' ? ev.payload : JSON.stringify(ev.payload, null, 2)}

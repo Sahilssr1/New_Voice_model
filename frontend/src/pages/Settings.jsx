@@ -9,8 +9,13 @@ const SERVICE_LABELS = {
 }
 
 function ServiceCard({ name, info, onTest, testing, result }) {
-  const status = info?.status || info?.healthy || 'unknown'
-  const ok = status === 'ok' || status === true || status === 'healthy'
+  // Provider health dicts report status as "up" | "down" | "degraded".
+  const status = info?.status || 'unknown'
+  const ok = status === 'up'
+  const warn = status === 'degraded'
+  const dotCls = ok ? 'dot-green' : warn ? 'dot-amber' : 'dot-red'
+  const pillCls = ok ? 'pill-ok' : warn ? 'pill-in_progress' : 'pill-failed'
+  const pillLabel = ok ? 'healthy' : warn ? 'degraded' : 'unhealthy'
   return (
     <div className="card service-card">
       <div className="service-head">
@@ -18,10 +23,10 @@ function ServiceCard({ name, info, onTest, testing, result }) {
           <h3>{SERVICE_LABELS[name] || name}</h3>
           <div className="muted small">{info?.model || info?.provider || info?.name || ''}</div>
         </div>
-        <span className={`dot ${ok ? 'dot-green' : 'dot-red'}`} title={String(status)} />
+        <span className={`dot ${dotCls}`} title={String(status)} />
       </div>
       <div className="service-meta">
-        <span className={`pill ${ok ? 'pill-ok' : 'pill-failed'}`}>{ok ? 'healthy' : 'unhealthy'}</span>
+        <span className={`pill ${pillCls}`}>{pillLabel}</span>
         {info?.detail && <span className="muted small">{info.detail}</span>}
       </div>
       {info?.latency_ms !== undefined && (

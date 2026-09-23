@@ -71,7 +71,7 @@ All in `backend/app/ai/*`, constructed via `app/ai/factory.py`:
 
 | ABC | Implementations | Notes |
 |---|---|---|
-| `SpeechToTextProvider` | `FasterWhisperSTT` | lazy load; `WHISPER_MODEL` (`tiny`/`base`); int8 CPU |
+| `SpeechToTextProvider` | `FasterWhisperSTT` | lazy load; `WHISPER_MODEL` (`tiny`/`base`/`small`, default `small`); int8 CPU |
 | `TextToSpeechProvider` | `PiperTTS`, `NullTTS` | chunked async gen; `speed`→`length_scale`; catalog with `{id, language, gender}` |
 | `LLMProvider.generate()` | `OllamaLLM`, `MockLLM` | `LLMResult(text, tool_calls, latency_ms)`; `trust_env=False` httpx |
 | `VADProvider` | `SileroVAD`, `EnergyVAD` | 20 ms frames; adaptive energy fallback |
@@ -99,7 +99,7 @@ Listening/Thinking/Speaking, transcripts, and per-turn latency. JWT in
 
 ## 6. Deployment
 
-`docker-compose.yml`: `postgres`, `redis`, `ollama` (pulls `qwen2.5:1.5b`),
+`docker-compose.yml`: `postgres`, `redis`, `ollama` (pulls `qwen2.5:3b`),
 `backend` (uvicorn), `frontend` (nginx). Local dev: SQLite + optional Redis,
 `npm run dev` + uvicorn directly (see README).
 

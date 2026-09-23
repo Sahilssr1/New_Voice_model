@@ -103,8 +103,9 @@ def test_voice_gateway_full_call(client, auth_headers, agent_id, monkeypatch):
         # send ~1s of "speech" frames then silence to trigger utterance end
         for _ in range(50):
             ws.send_json({"type": "audio", "data": _pcm_frame(), "seq": 1})
-        # FakeVAD: 50 speech frames then silence; send silence frames
-        for _ in range(60):
+        # FakeVAD: 50 speech frames then silence; send enough silence frames
+        # for the VAD's soft close (900ms) + merge window (600ms) + margin.
+        for _ in range(100):
             ws.send_json({"type": "audio", "data": _pcm_frame(amp=0.0), "seq": 2})
 
         saw_user_transcript = False
@@ -174,7 +175,7 @@ def test_voice_gateway_stt_failure_recovers(client, auth_headers, agent_id, monk
                 break
         for _ in range(50):
             ws.send_json({"type": "audio", "data": _pcm_frame(), "seq": 1})
-        for _ in range(30):
+        for _ in range(100):
             ws.send_json({"type": "audio", "data": _pcm_frame(amp=0.0), "seq": 2})
         # STT fails -> expect an error frame, then the call must still end cleanly.
         saw_error = False

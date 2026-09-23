@@ -359,6 +359,7 @@ pre { padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; word-break: b
 .timeline-item:last-child::before { display: none; }
 .timeline-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); margin-top: 4px; flex-shrink: 0; box-shadow: 0 0 8px rgba(99,102,241,0.6); }
 .timeline-error .timeline-dot { background: var(--red); box-shadow: 0 0 8px rgba(248,113,113,0.6); }
+.timeline-body { flex: 1; min-width: 0; }
 .timeline-type { font-size: 0.85rem; margin-bottom: 0.15rem; }
 .timeline-payload { font-size: 0.75rem; max-height: 140px; overflow: auto; margin-top: 0.4rem; }
 

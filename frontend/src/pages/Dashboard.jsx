@@ -1,30 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getDashboard, getHealth } from '../api/client'
+import { formatDateTime, formatDuration, languageLabel } from '../utils/format'
 import StatCard from '../components/StatCard'
 
-function StatusDot({ ok }) {
-  return <span className={`dot${ok ? ' dot-green' : ' dot-red'}`} />
-}
-
-function formatDuration(totalSec) {
-  if (!totalSec && totalSec !== 0) return '—'
-  const s = Math.round(totalSec)
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${sec}s`
-  return `${sec}s`
-}
-
-function formatTime(iso) {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString()
-  } catch {
-    return iso
-  }
+function StatusDot({ status }) {
+  // Backend /health services are plain strings: "up" | "down" | "degraded".
+  const cls = status === 'up' ? 'dot-green' : status === 'degraded' ? 'dot-amber' : 'dot-red'
+  return <span className={`dot ${cls}`} title={status || 'unknown'} />
 }
 
 export default function Dashboard() {
@@ -117,7 +100,7 @@ export default function Dashboard() {
                           <span className={`pill pill-${c.status}`}>{c.status}</span>
                         </td>
                         <td>{formatDuration(c.duration_sec)}</td>
-                        <td className="muted">{formatTime(c.started_at)}</td>
+                        <td className="muted">{formatDateTime(c.started_at)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -133,7 +116,7 @@ export default function Dashboard() {
                 <div className="chip-row">
                   {Object.entries(data.languages).map(([lang, count]) => (
                     <span key={lang} className="chip">
-                      {lang} · {count}
+                      {languageLabel(lang)} · {count}
                     </span>
                   ))}
                 </div>
@@ -145,11 +128,9 @@ export default function Dashboard() {
                 <ul className="status-list">
                   {serviceNames.map((name) => (
                     <li key={name}>
-                      <StatusDot ok={!!services[name]} />
+                      <StatusDot status={services[name]} />
                       <span className="status-name">{name}</span>
-                      <span className="muted status-detail">
-                        {typeof services[name] === 'object' ? services[name].status || '' : ''}
-                      </span>
+                      <span className="muted status-detail">{services[name] || 'unknown'}</span>
                     </li>
                   ))}
                 </ul>

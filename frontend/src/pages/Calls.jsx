@@ -1,23 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deleteCall, listCalls } from '../api/client'
-
-function formatDuration(totalSec) {
-  if (totalSec === null || totalSec === undefined) return '—'
-  const s = Math.round(totalSec)
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  return m > 0 ? `${m}m ${sec}s` : `${sec}s`
-}
-
-function formatTime(iso) {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString()
-  } catch {
-    return iso
-  }
-}
+import { formatDateTime, formatDuration, languageLabel } from '../utils/format'
 
 export default function Calls() {
   const [calls, setCalls] = useState(null)
@@ -97,9 +81,9 @@ export default function Calls() {
                     </td>
                     <td><span className={`pill pill-${c.status}`}>{c.status}</span></td>
                     <td>{formatDuration(c.duration_sec)}</td>
-                    <td>{c.language ? <span className="chip chip-sm">{c.language}</span> : '—'}</td>
+                    <td>{c.language ? <span className="chip chip-sm">{languageLabel(c.language)}</span> : '—'}</td>
                     <td>{c.message_count ?? '—'}</td>
-                    <td className="muted">{formatTime(c.started_at)}</td>
+                    <td className="muted">{formatDateTime(c.started_at)}</td>
                     <td>
                       <button
                         className="btn btn-danger-ghost btn-sm"

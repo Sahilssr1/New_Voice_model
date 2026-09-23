@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import os
 import time
 from datetime import datetime, timezone
 
@@ -34,7 +35,19 @@ log = logging.getLogger(__name__)
 
 _FRAME_SAMPLES = 320  # 20 ms @ 16 kHz
 _SPEECH_START_FRAMES = 3  # ~60 ms of speech to open a segment
-_SPEECH_END_SILENCE_FRAMES = 30  # ~600 ms of silence to close a segment
+# Silence that soft-closes a segment. Natural pauses inside a sentence run
+# 300-800 ms; 600 ms was splitting sentences at the first pause ("hi" |
+# "how are you?"). 900 ms keeps a sentence together without feeling laggy.
+_SPEECH_END_SILENCE_FRAMES = max(
+    30, int(float(os.environ.get("VAD_END_SILENCE_MS", "900")) / 20)
+)
+# Extra grace after a soft close: if speech resumes within this window the
+# audio is merged into the same utterance instead of starting a new turn.
+# Handles deliberate mid-sentence pauses (e.g. "Hi," <pause> "how are you?").
+_MERGE_SILENCE_FRAMES = max(
+    15, int(float(os.environ.get("VAD_MERGE_SILENCE_MS", "600")) / 20)
+)
+_HARD_CLOSE_SILENCE_FRAMES = _SPEECH_END_SILENCE_FRAMES + _MERGE_SILENCE_FRAMES
 _BARGE_IN_FRAMES = 3  # ~60 ms of speech while speaking -> barge-in
 _MIN_UTTERANCE_SAMPLES = int(0.3 * 16000)
 _MAX_BUFFER_SAMPLES = 30 * 16000
@@ -106,6 +119,8 @@ class VoicePipeline:
         self._utterance_samples = 0
         self._vad_remainder = np.zeros(0, dtype=np.float32)
         self._in_speech = False
+        self._soft_closed = False  # end-silence reached, merge window open
+        self._mid_turn_speech = False  # user spoke while state != listening
         self._speech_frames = 0
         self._silence_frames = 0
         self._barge_frames = 0
@@ -336,9 +351,77 @@ class VoicePipeline:
         self._utterance_chunks = []
         self._utterance_samples = 0
         self._in_speech = False
+        self._soft_closed = False
+        self._mid_turn_speech = False
         self._speech_frames = 0
+
+    def _trim_buffer_to_last_speech(self) -> None:
+        """Trim the utterance buffer to the most recent speech onset.
+
+        While the pipeline was busy (thinking/speaking), raw audio kept
+        accumulating. The buffer may hold tens of seconds of silence around
+        a short user utterance. Scan it with the VAD, keep from ~200 ms
+        before the last speech region, and mark the segmenter as in-speech
+        so new frames continue (rather than restart) the utterance.
+        """
+        if not self._utterance_chunks:
+            return
+        audio = np.concatenate(self._utterance_chunks).astype(np.float32)
+        # VAD expects float32 in [-1, 1]; buffer is int16 PCM.
+        if audio.size and np.abs(audio).max() > 1.0:
+            audio = audio / 32768.0
+        frame_len = _FRAME_SAMPLES
+        # Collect speech regions, merging onsets <1s apart into one region,
+        # so a pause inside an utterance doesn't split it.
+        regions: list[list[int]] = []
+        in_region = False
+        for i in range(0, audio.size - frame_len + 1, frame_len):
+            try:
+                is_speech, _ = self._vad.is_speech(audio[i:i + frame_len])
+            except Exception:
+                is_speech = False
+            if is_speech:
+                if not in_region:
+                    if regions and i - regions[-1][1] < 16000:
+                        pass  # continues the previous region
+                    else:
+                        regions.append([i, i])
+                    in_region = True
+                if regions:
+                    regions[-1][1] = i
+            else:
+                in_region = False
+        if not regions:
+            self._reset_utterance_buffer()
+            return
+        # Keep from 200 ms before the last region's start; drop stale audio.
+        # Buffer chunks are float32 in [-1, 1] (see _on_audio).
+        start = max(0, regions[-1][0] - int(0.2 * 16000))
+        trimmed = audio[start:].astype(np.float32)
+        self._utterance_chunks = [trimmed]
+        self._utterance_samples = trimmed.size
+        self._in_speech = True
+        self._soft_closed = False
+        self._speech_frames = _SPEECH_START_FRAMES
+        self._silence_frames = 0
         self._silence_frames = 0
         self._barge_frames = 0
+        # VADs with internal state (e.g. Silero's LSTM) must not leak
+        # acoustic context across utterance boundaries.
+        reset = getattr(self._vad, "reset", None)
+        if callable(reset):
+            try:
+                reset()
+            except Exception as exc:
+                log.warning("VAD reset failed: %s", exc)
+        # VADs with internal state (e.g. Silero's LSTM) must not leak
+        # acoustic context across utterance boundaries.
+        reset = getattr(self._vad, "reset", None)
+        if callable(reset):
+            try:
+                reset()
+            except Exception as exc:
+                log.warning("VAD reset failed: %s", exc)
 
     def _reset_silence(self) -> None:
         self._last_voice_activity = self._now()
@@ -366,20 +449,38 @@ class VoicePipeline:
             return
 
         if self._state != "listening":
+            # Thinking: note speech so the turn-end logic can continue the
+            # user's utterance instead of silently dropping it.
+            if speech:
+                self._mid_turn_speech = True
             return
 
         if speech:
             self._last_voice_activity = self._now()
             self._speech_frames += 1
             self._silence_frames = 0
+            if self._soft_closed:
+                # Speech resumed inside the merge window: same utterance,
+                # no new speech_started event.
+                self._soft_closed = False
             if not self._in_speech and self._speech_frames >= _SPEECH_START_FRAMES:
                 self._in_speech = True
                 await self._log("speech_started", {})
         else:
             self._silence_frames += 1
             self._speech_frames = 0
-            if self._in_speech and self._silence_frames >= _SPEECH_END_SILENCE_FRAMES:
+            if not self._in_speech:
+                pass
+            elif not self._soft_closed and self._silence_frames >= _SPEECH_END_SILENCE_FRAMES:
+                # Soft close: end-silence reached, but keep buffering in
+                # case the user resumes within the merge window (mid-
+                # sentence pauses). Nothing is dispatched yet.
+                self._soft_closed = True
+            elif self._soft_closed and self._silence_frames >= _HARD_CLOSE_SILENCE_FRAMES:
+                # Hard close: the pause outlasted the merge window, the
+                # utterance is really over.
                 self._in_speech = False
+                self._soft_closed = False
                 audio = self._take_utterance()
                 if audio is not None and audio.size >= _MIN_UTTERANCE_SAMPLES:
                     await self._log(
@@ -390,6 +491,10 @@ class VoicePipeline:
                         self._utterance_task = asyncio.create_task(
                             self._process_utterance(audio),
                             name=f"utterance-{self._call_id}-{self._turn + 1}",
+                        )
+                    else:
+                        log.warning(
+                            "Dropped utterance: previous turn still processing"
                         )
 
     async def _on_barge_in(self) -> None:
@@ -440,6 +545,7 @@ class VoicePipeline:
 
     async def _run_turn(self, audio: np.ndarray, turn: int) -> None:
         self._set_state("thinking")
+        self._mid_turn_speech = False
         t_start = self._now()
 
         # -- STT ------------------------------------------------------------
@@ -591,7 +697,18 @@ class VoicePipeline:
             }
         )
         if not self._stopped:
-            self._reset_utterance_buffer()  # drop audio captured mid-turn
+            # If the user kept speaking during this turn, keep their audio
+            # and let segmentation finish it as the next turn instead of
+            # dropping their words. Trim the buffer to the most recent
+            # speech onset so we don't send minutes of stale silence to STT.
+            user_speaking = (
+                self._utterance_samples >= _MIN_UTTERANCE_SAMPLES
+                and (self._in_speech or self._soft_closed or self._mid_turn_speech)
+            )
+            if not user_speaking:
+                self._reset_utterance_buffer()  # drop audio captured mid-turn
+            else:
+                self._trim_buffer_to_last_speech()
             self._set_state("listening")
             self._reset_silence()
 

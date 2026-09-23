@@ -56,7 +56,7 @@ contracts, WebSocket protocol, and call-flow diagrams.
 | Backend    | FastAPI, Uvicorn, SQLAlchemy (async), Alembic, PyJWT  |
 | STT        | faster-whisper (CPU int8, `tiny`/`base`)              |
 | TTS        | Piper (`en_US-amy-medium`, `en_US-lessac-medium`, `hi_IN-priyamvada-medium`) |
-| LLM        | Ollama + `qwen2.5:1.5b` (mock LLM for tests)          |
+| LLM        | Ollama + `qwen2.5:3b` (mock LLM for tests)          |
 | VAD        | Silero (optional) / adaptive EnergyVAD                |
 | Languages  | English, Hindi, Hinglish (+ auto-detect, extensible)  |
 | Database   | PostgreSQL (prod) / SQLite (local dev)                |
@@ -75,13 +75,13 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # 2. Models (one-time downloads)
-export WHISPER_MODEL=tiny          # or 'base' (better Hindi, slower)
+export WHISPER_MODEL=small         # or 'base'/'tiny' (faster, weaker Hindi)
 python -m piper.download_voices --download-dir ./voices \
   en_US-amy-medium en_US-lessac-medium hi_IN-priyamvada-medium
 
 # 3. LLM — install Ollama (https://ollama.com), then:
 ollama serve &
-ollama pull qwen2.5:1.5b
+ollama pull qwen2.5:3b
 
 # 4. Run backend (SQLite for local dev)
 DATABASE_URL="sqlite+aiosqlite:///./voiceagent.db" \
@@ -104,7 +104,7 @@ access when prompted.
 ```bash
 docker compose up --build
 # frontend: http://localhost:3000, backend: http://localhost:8000
-# first boot pulls the Ollama model (qwen2.5:1.5b) — takes a few minutes
+# first boot pulls the Ollama model (qwen2.5:3b) — takes a few minutes
 ```
 
 Services: `postgres`, `redis`, `ollama`, `backend`, `frontend` (nginx).
@@ -175,10 +175,10 @@ API: `POST /api/agents/{id}/kb/documents` (multipart upload),
 |--------------------|----------------------|------------------------------------------|
 | `DATABASE_URL`     | sqlite dev file      | `postgresql+asyncpg://…` in production   |
 | `JWT_SECRET`       | (required)           | ≥32 bytes                                |
-| `WHISPER_MODEL`    | `base`               | `tiny` for low-RAM CPUs                  |
+| `WHISPER_MODEL`    | `small`              | `tiny`/`base` for low-RAM CPUs            |
 | `TTS_VOICES_DIR`   | `./voices`           | Piper `.onnx` voices                     |
 | `OLLAMA_HOST`      | `http://localhost:11434` | LLM endpoint                         |
-| `OLLAMA_MODEL`     | `qwen2.5:1.5b`       | any Ollama model tag                     |
+| `OLLAMA_MODEL`     | `qwen2.5:3b`       | any Ollama model tag                     |
 | `REDIS_URL`        | —                    | optional locally; required in Compose    |
 
 ## Testing
@@ -196,10 +196,11 @@ multi-turn memory, transcript persistence — all verified 2026-09-22.
 
 ## Limitations
 
-- CPU-only realtime: turn latency ~7–13 s on 2 vCPUs (`tiny`+`qwen2.5:1.5b`);
+- CPU-only realtime: turn latency ~10–15 s on 2 vCPUs (`small`+`qwen2.5:3b`);
   a GPU or larger CPU budget is needed for the 2–3 s target.
-- `tiny` Whisper misdetects Hindi without the language hint; `base` is
-  recommended for Hindi/Hinglish quality.
+- `tiny`/`base` Whisper mis-transcribe Hindi; `small` is the default for
+  reliable Hindi/Hinglish. `qwen2.5:1.5b` is faster but its Hindi/Hinglish
+  output is poor — use `OLLAMA_MODEL=qwen2.5:1.5b` only for English-only agents.
 - Telephony (SIP/Asterisk/FreeSWITCH) is architected (`TelephonyProvider`
   ABC) but only the browser channel is implemented.
 - No Docker on the dev VM — Compose files are provided but were validated by

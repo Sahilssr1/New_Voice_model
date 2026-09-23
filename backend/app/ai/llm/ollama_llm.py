@@ -21,6 +21,24 @@ from .base import LLMProvider, LLMResult
 log = logging.getLogger(__name__)
 
 
+def _default_llm_model() -> str:
+    """Resolve the default Ollama model.
+
+    Precedence: ``OLLAMA_MODEL`` env (set by run-local scripts) >
+    ``DEFAULT_LLM_MODEL`` env > app settings > ``"qwen2.5:3b"``.
+    """
+    for var in ("OLLAMA_MODEL", "DEFAULT_LLM_MODEL"):
+        val = os.environ.get(var)
+        if val:
+            return val
+    try:
+        from app.core.config import settings
+
+        return settings.DEFAULT_LLM_MODEL or "qwen2.5:3b"
+    except Exception:
+        return "qwen2.5:3b"
+
+
 def _make_client(timeout: float):
     """Create an httpx client that ignores proxy env vars.
 
@@ -71,7 +89,7 @@ class OllamaLLM(LLMProvider):
         if httpx is None:
             raise ImportError("httpx is not installed; OllamaLLM unavailable")
         self.base_url = (base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
-        self.model = model or os.environ.get("DEFAULT_LLM_MODEL", "qwen2.5:1.5b")
+        self.model = model or _default_llm_model()
         self.timeout = timeout
 
     async def generate(

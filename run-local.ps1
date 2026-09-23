@@ -17,7 +17,7 @@ Need ollama "Install Ollama from https://ollama.com/download"
 
 # Ollama daemon
 try { ollama list | Out-Null } catch { Start-Process ollama -ArgumentList 'serve' -WindowStyle Hidden }
-ollama pull qwen2.5:1.5b | Out-Null
+ollama pull qwen2.5:3b | Out-Null
 
 # Backend venv (create once)
 $venvPy = Join-Path $root 'backend\.venv\Scripts\python.exe'
@@ -39,9 +39,9 @@ if (-not (Test-Path (Join-Path $root 'frontend\node_modules'))) {
 
 $envBlock = '$env:DATABASE_URL="sqlite+aiosqlite:///./voiceagent.db"; ' +
             '$env:JWT_SECRET="dev-secret-key-min-32-bytes-long-ok"; ' +
-            '$env:WHISPER_MODEL="base"; ' +
+            '$env:WHISPER_MODEL="small"; ' +
             '$env:TTS_VOICES_DIR="./voices"; ' +
-            '$env:OLLAMA_MODEL="qwen2.5:1.5b"; '
+            '$env:OLLAMA_MODEL="qwen2.5:3b"; '
 
 $backendCmd = "cd '$root\backend'; " + $envBlock + ".\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
 Start-Process powershell -ArgumentList '-NoExit', '-Command', $backendCmd

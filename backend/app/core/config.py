@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 10080
 
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    DEFAULT_LLM_MODEL: str = "qwen2.5:1.5b"
+    DEFAULT_LLM_MODEL: str = "qwen2.5:3b"
 
-    WHISPER_MODEL: str = "base"
+    WHISPER_MODEL: str = "small"
     WHISPER_DEVICE: str = "cpu"
 
     TTS_VOICES_DIR: str = "./voices"

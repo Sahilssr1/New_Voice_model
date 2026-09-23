@@ -22,6 +22,20 @@ log = logging.getLogger(__name__)
 TARGET_SR = 16000
 
 
+def _app_default_whisper_model() -> str:
+    """App-configured default Whisper model (``WHISPER_MODEL`` setting).
+
+    Falls back to ``"small"`` if the app config cannot be imported (e.g.
+    the provider is used standalone outside the FastAPI app).
+    """
+    try:
+        from app.core.config import settings
+
+        return settings.WHISPER_MODEL or "small"
+    except Exception:
+        return "small"
+
+
 def _sanitize_proxy_env() -> None:
     """Strip bracketed IPv6 literals from NO_PROXY/no_proxy.
 
@@ -72,7 +86,11 @@ class FasterWhisperSTT(SpeechToTextProvider):
         device: str | None = None,
         compute_type: str = "int8",
     ) -> None:
-        self.model_name = model_name or os.environ.get("WHISPER_MODEL", "base")
+        self.model_name = (
+            model_name
+            or os.environ.get("WHISPER_MODEL")
+            or _app_default_whisper_model()
+        )
         self.device = device or os.environ.get("WHISPER_DEVICE", "cpu")
         self.compute_type = compute_type
         self._model = None

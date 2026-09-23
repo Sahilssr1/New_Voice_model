@@ -92,6 +92,15 @@ export function useVoiceCall() {
   const micCtxRef = useRef(null)
   const micNodeRef = useRef(null)
   const resampleBufRef = useRef(new Float32Array(0))
+  // Generation counter for the mic lifecycle. Every startMic() captures the
+  // current generation; any stopMic()/cleanup() bumps it, which makes an
+  // in-flight (stale) startMic() abort at its next checkpoint instead of
+  // completing and then tearing down the NEW connection's AudioContext.
+  // (Without this, React StrictMode's double-mount — or any rapid
+  // reconnect — lets the stale connect's stopMic() close the fresh
+  // AudioContext mid-addModule, surfacing as
+  // "Unable to load a worklet's module".)
+  const micGenRef = useRef(0)
 
   // playback refs
   const playCtxRef = useRef(null)
@@ -159,6 +168,9 @@ export function useVoiceCall() {
 
   // ---- mic ----
   const stopMic = useCallback(() => {
+    // Invalidate any in-flight startMic() so a stale startup aborts instead
+    // of completing and clobbering the new connection's resources.
+    micGenRef.current++
     try {
       micNodeRef.current?.disconnect()
     } catch {}
@@ -175,6 +187,14 @@ export function useVoiceCall() {
   }, [])
 
   const startMic = useCallback(async () => {
+    const gen = ++micGenRef.current
+    const throwIfSuperseded = () => {
+      if (micGenRef.current !== gen) {
+        const e = new Error('Mic startup superseded by a newer connection')
+        e.code = 'MIC_SUPERSEDED'
+        throw e
+      }
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       setMicState('denied')
       throw new Error('Microphone is not supported in this browser.')
@@ -196,6 +216,7 @@ export function useVoiceCall() {
       }
       throw e
     }
+    throwIfSuperseded()
     setMicState('granted')
     micStreamRef.current = stream
 
@@ -205,7 +226,12 @@ export function useVoiceCall() {
 
     const blob = new Blob([MIC_PROCESSOR_CODE], { type: 'application/javascript' })
     const url = URL.createObjectURL(blob)
-    await audioCtx.audioWorklet.addModule(url)
+    try {
+      await audioCtx.audioWorklet.addModule(url)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+    throwIfSuperseded()
 
     const source = audioCtx.createMediaStreamSource(stream)
     try {
@@ -325,7 +351,9 @@ export function useVoiceCall() {
       try {
         await startMic()
       } catch (e) {
-        if (connectionIdRef.current !== connId) return
+        // A superseded startup (or a stale connection id) is normal during
+        // rapid remounts/reconnects — the newer connection owns the mic now.
+        if (e?.code === 'MIC_SUPERSEDED' || connectionIdRef.current !== connId) return
         setConnecting(false)
         const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')
         setError(

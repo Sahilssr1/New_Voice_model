@@ -16,7 +16,7 @@ local Qwen LLM → local Piper voice → your speakers.
 Then pull the LLM model (one time, ~1 GB):
 
 ```powershell
-ollama pull qwen2.5:1.5b
+ollama pull qwen2.5:3b
 ```
 
 > The speech models are already in this bundle: 3 Piper voices live in
@@ -48,9 +48,9 @@ pip install -r requirements.txt
 # pip install --index-url https://download.pytorch.org/whl/cpu torch
 $env:DATABASE_URL="sqlite+aiosqlite:///./voiceagent.db"
 $env:JWT_SECRET="dev-secret-key-min-32-bytes-long-ok"
-$env:WHISPER_MODEL="tiny"
+$env:WHISPER_MODEL="small"
 $env:TTS_VOICES_DIR="./voices"
-$env:OLLAMA_MODEL="qwen2.5:1.5b"
+$env:OLLAMA_MODEL="qwen2.5:3b"
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -86,8 +86,8 @@ Sanity checks:
 - `http://127.0.0.1:8000/health` → all services `up`
   (`redis: down` is fine locally — SQLite + in-process state are used).
 - First reply is the slowest (models load into memory); later turns are faster.
-- On CPU expect roughly 2–5 s per turn with `tiny`; use `WHISPER_MODEL=base`
-  for better Hindi at the cost of speed.
+- On CPU expect roughly 3–6 s per turn with `small` (recommended — reliable
+  Hindi); use `WHISPER_MODEL=base` or `tiny` for speed at the cost of Hindi quality.
 
 ## 4. Troubleshooting
 

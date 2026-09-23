@@ -54,7 +54,9 @@ def build_llm_messages(agent, memory, kb_context: str | None = None) -> list[dic
     parts.append(
         "Keep responses short and conversational (1-3 sentences), suitable "
         "for spoken output. Never include code blocks, JSON, or tool-call "
-        "syntax in your spoken reply."
+        "syntax in your spoken reply. Always understand the user's full "
+        "message and intent before answering; never answer based on a "
+        "single keyword."
     )
 
     summary = getattr(memory, "summary", "") or ""
