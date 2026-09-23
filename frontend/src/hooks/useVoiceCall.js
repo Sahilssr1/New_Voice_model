@@ -85,6 +85,7 @@ export function useVoiceCall() {
   const mutedRef = useRef(false)
   const pingTimerRef = useRef(null)
   const disconnectTimerRef = useRef(null)
+  const connectionIdRef = useRef(0)
 
   // mic refs
   const micStreamRef = useRef(null)
@@ -204,11 +205,7 @@ export function useVoiceCall() {
 
     const blob = new Blob([MIC_PROCESSOR_CODE], { type: 'application/javascript' })
     const url = URL.createObjectURL(blob)
-    try {
-      await audioCtx.audioWorklet.addModule(url)
-    } finally {
-      URL.revokeObjectURL(url)
-    }
+    await audioCtx.audioWorklet.addModule(url)
 
     const source = audioCtx.createMediaStreamSource(stream)
     try {
@@ -306,11 +303,8 @@ export function useVoiceCall() {
 
   const connect = useCallback(
     async (agentId) => {
-      if (wsRef.current) {
-        // already connected/connecting — reset first
-        manualCloseRef.current = true
-        cleanup()
-      }
+      const connId = ++connectionIdRef.current
+      cleanup()
       manualCloseRef.current = false
       setError(null)
       setTranscript([])
@@ -331,6 +325,7 @@ export function useVoiceCall() {
       try {
         await startMic()
       } catch (e) {
+        if (connectionIdRef.current !== connId) return
         setConnecting(false)
         const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')
         setError(
@@ -341,11 +336,17 @@ export function useVoiceCall() {
         return
       }
 
+      if (connectionIdRef.current !== connId) {
+        stopMic()
+        return
+      }
+
       // 2) websocket
       let ws
       try {
         ws = new WebSocket(api.wsUrl())
       } catch (e) {
+        if (connectionIdRef.current !== connId) return
         setConnecting(false)
         setError(`Could not open WebSocket: ${e.message || e}`)
         stopMic()

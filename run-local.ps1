@@ -39,14 +39,15 @@ if (-not (Test-Path (Join-Path $root 'frontend\node_modules'))) {
 
 $envBlock = '$env:DATABASE_URL="sqlite+aiosqlite:///./voiceagent.db"; ' +
             '$env:JWT_SECRET="dev-secret-key-min-32-bytes-long-ok"; ' +
-            '$env:WHISPER_MODEL="tiny"; ' +
+            '$env:WHISPER_MODEL="base"; ' +
             '$env:TTS_VOICES_DIR="./voices"; ' +
             '$env:OLLAMA_MODEL="qwen2.5:1.5b"; '
 
-Start-Process powershell -ArgumentList '-NoExit', '-Command',
-  "cd '$root\backend'; $envBlock .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
-Start-Process powershell -ArgumentList '-NoExit', '-Command',
-  "cd '$root\frontend'; npm run dev"
+$backendCmd = "cd '$root\backend'; " + $envBlock + ".\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+Start-Process powershell -ArgumentList '-NoExit', '-Command', $backendCmd
+
+$frontendCmd = "cd '$root\frontend'; npm run dev"
+Start-Process powershell -ArgumentList '-NoExit', '-Command', $frontendCmd
 
 Write-Host ''
 Write-Host 'VoiceAgent is starting.' -ForegroundColor Green
