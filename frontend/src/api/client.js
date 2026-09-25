@@ -65,6 +65,13 @@ async function request(method, path, body) {
     data = text ? { message: text } : null
   }
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/api/auth/login')) {
+      setToken(null)
+      setUser(null)
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    }
     throw new ApiError(res.status, data)
   }
   return data
@@ -87,7 +94,16 @@ export const api = {
       body: formData,
     })
     const data = await res.json().catch(() => null)
-    if (!res.ok) throw new ApiError(res.status, data)
+    if (!res.ok) {
+      if (res.status === 401) {
+        setToken(null)
+        setUser(null)
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login'
+        }
+      }
+      throw new ApiError(res.status, data)
+    }
     return data
   },
 }
